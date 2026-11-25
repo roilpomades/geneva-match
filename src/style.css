@@ -124,19 +124,26 @@ body {
 
 .score-grid {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: end;
-  gap: 0.75rem;
+  column-gap: 0.85rem;
 }
 
 .player {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+  min-width: 0;
+}
+
+.player.left {
+  text-align: left;
+  justify-self: start;
 }
 
 .player.right {
   text-align: right;
+  justify-self: end;
 }
 
 .fed {
