@@ -305,13 +305,13 @@ export function renderApp(root: HTMLElement, state: MatchState, extras: UiExtras
     <div class="page">
       <div class="atmosphere" aria-hidden="true"></div>
       <header class="hero">
-        <p class="brand">Чемпионат мира 2026</p>
+        <p class="brand">Матч за звание чемпиона мира по шахматам</p>
         <h1 class="matchup">
           <span class="name">${PLAYERS.gukesh.flag} ${PLAYERS.gukesh.name}</span>
           <span class="vs">—</span>
           <span class="name">${PLAYERS.sindarov.flag} ${PLAYERS.sindarov.name}</span>
         </h1>
-        <p class="sub">Женева · классический матч до 7½ очков</p>
+        <p class="sub">Женева 2026 · классика до 7½ очков</p>
       </header>
 
       ${renderPhasePanel(state, extras)}
@@ -372,7 +372,7 @@ export function renderLoading(root: HTMLElement): void {
     <div class="page is-loading">
       <div class="atmosphere" aria-hidden="true"></div>
       <header class="hero">
-        <p class="brand">Чемпионат мира 2026</p>
+        <p class="brand">Матч за звание чемпиона мира по шахматам</p>
         <h1 class="matchup">
           <span class="name">${PLAYERS.gukesh.flag} Gukesh</span>
           <span class="vs">—</span>

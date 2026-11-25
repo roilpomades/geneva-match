@@ -79,11 +79,12 @@ body {
 .brand {
   margin: 0 0 0.55rem;
   font-family: var(--font-display);
-  font-size: clamp(1.65rem, 5.5vw, 2.35rem);
+  font-size: clamp(1.35rem, 4.6vw, 1.95rem);
   font-weight: 600;
   letter-spacing: -0.02em;
-  line-height: 1.1;
+  line-height: 1.15;
   color: var(--ivory);
+  max-width: 22ch;
 }
 
 .matchup {
