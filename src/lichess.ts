@@ -2,6 +2,7 @@ import {
   LICHESS_TOUR_ID,
   SCHEDULE,
   blackForGame,
+  derivePhase,
   fallbackMatchState,
   movesFromFen,
   parsePointsFromStatus,
@@ -16,6 +17,7 @@ interface LichessRoundMeta {
   name: string
   slug: string
   finished?: boolean
+  ongoing?: boolean
   startsAt?: number
   finishedAt?: number
 }
@@ -30,6 +32,7 @@ interface LichessGame {
   name: string
   fen?: string
   status?: string
+  lastMove?: string
   players?: Array<{ name: string; fed?: string }>
 }
 
@@ -39,6 +42,7 @@ interface LichessRoundResponse {
 }
 
 const UA = 'geneva-match-dashboard (cursor-cloud-agent; chess-wcc-2026)'
+const STARTING_FEN_PREFIX = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR'
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url, {
@@ -74,6 +78,25 @@ function scheduleStart(gameNumber: number): number {
   return Date.now()
 }
 
+function isLiveGame(
+  meta: LichessRoundMeta | undefined,
+  game: LichessGame | undefined,
+  finished: boolean,
+  startsAt: number,
+  now: number,
+): boolean {
+  if (finished) return false
+  if (meta?.ongoing) return true
+  const status = game?.status ?? '*'
+  if (status !== '*' && status !== '') return false
+  const fen = game?.fen ?? ''
+  const hasMoves = Boolean(game?.lastMove) || (fen && !fen.startsWith(STARTING_FEN_PREFIX))
+  // Live if moves already played, or clock window after official start (with 2h grace before end-of-day).
+  if (hasMoves) return true
+  if (now >= startsAt && now < startsAt + 7 * 60 * 60 * 1000) return true
+  return false
+}
+
 export async function loadMatchState(): Promise<MatchState> {
   try {
     const tour = await fetchJson<LichessTourResponse>(
@@ -86,9 +109,16 @@ export async function loadMatchState(): Promise<MatchState> {
       if (n != null) roundByGame.set(n, round)
     }
 
-    const finishedRounds = [...roundByGame.entries()].filter(([, r]) => r.finished)
+    const now = Date.now()
+    const roundsToFetch = [...roundByGame.entries()].filter(([, r]) => {
+      if (r.finished || r.ongoing) return true
+      const start = r.startsAt ?? 0
+      // Current / imminent / recently started unfinished rounds
+      return start > 0 && start <= now + 6 * 60 * 60 * 1000
+    })
+
     const roundDetails = await Promise.all(
-      finishedRounds.map(async ([, round]) => {
+      roundsToFetch.map(async ([, round]) => {
         const detail = await fetchJson<LichessRoundResponse>(
           `https://lichess.org/api/broadcast/-/-/${round.id}`,
         )
@@ -110,6 +140,8 @@ export async function loadMatchState(): Promise<MatchState> {
       const startsAt = meta?.startsAt ?? scheduleStart(n)
       const finished = Boolean(meta?.finished)
       const status = finished ? (game?.status ?? '½-½') : (game?.status ?? '*')
+      const fen = game?.fen
+      const live = isLiveGame(meta, game, finished, startsAt, now)
 
       if (finished) {
         const pts = parsePointsFromStatus(status, white)
@@ -126,8 +158,10 @@ export async function loadMatchState(): Promise<MatchState> {
         white,
         black: blackForGame(n),
         status,
-        moves: movesFromFen(game?.fen),
+        moves: movesFromFen(fen),
         roundId: meta?.id,
+        fen,
+        live,
       })
     }
 
@@ -137,6 +171,7 @@ export async function loadMatchState(): Promise<MatchState> {
       gukesh,
       sindarov,
       games,
+      phase: derivePhase(games, now),
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Сеть недоступна'

@@ -25,6 +25,22 @@ export interface GameResult {
   moves?: number
   opening?: string
   roundId?: string
+  fen?: string
+  /** True when Lichess marks the round ongoing / status is * after start */
+  live?: boolean
+}
+
+export type PhaseKind = 'live' | 'countdown' | 'rest' | 'done'
+
+export interface LivePhase {
+  kind: PhaseKind
+  gameNumber?: number
+  startsAt?: number
+  white?: PlayerId
+  black?: PlayerId
+  fen?: string
+  moves?: number
+  status?: string
 }
 
 export interface MatchState {
@@ -33,6 +49,7 @@ export interface MatchState {
   gukesh: number
   sindarov: number
   games: GameResult[]
+  phase: LivePhase
   nextHint?: string
   error?: string
 }
@@ -43,6 +60,7 @@ export const PLAYERS = {
     name: 'Gukesh',
     fullName: 'Gukesh Dommaraju',
     fed: 'IND',
+    flag: '🇮🇳',
     rating: 2710,
   },
   sindarov: {
@@ -50,6 +68,7 @@ export const PLAYERS = {
     name: 'Sindarov',
     fullName: 'Javokhir Sindarov',
     fed: 'UZB',
+    flag: '🇺🇿',
     rating: 2782,
   },
 }
@@ -361,6 +380,74 @@ export function fallbackMatchState(error?: string): MatchState {
     gukesh: 0.5,
     sindarov: 0.5,
     games,
+    phase: derivePhase(games),
     error,
   }
+}
+
+export function derivePhase(games: GameResult[], now = Date.now()): LivePhase {
+  const live = games.find((g) => g.live && !g.finished)
+  if (live) {
+    return {
+      kind: 'live',
+      gameNumber: live.gameNumber,
+      startsAt: live.startsAt,
+      white: live.white,
+      black: live.black,
+      fen: live.fen,
+      moves: live.moves,
+      status: live.status,
+    }
+  }
+
+  const next = games.find((g) => !g.finished)
+  if (!next) {
+    return { kind: 'done' }
+  }
+
+  // Rest day between finished block and next game?
+  const rest = SCHEDULE.find(
+    (e) =>
+      e.kind === 'rest' &&
+      Date.parse(`${e.date}T00:00:00+01:00`) <= now &&
+      Date.parse(`${e.date}T23:59:59+01:00`) >= now &&
+      next.startsAt > now,
+  )
+  if (rest && now < next.startsAt) {
+    return {
+      kind: 'rest',
+      gameNumber: next.gameNumber,
+      startsAt: next.startsAt,
+      white: next.white,
+      black: next.black,
+    }
+  }
+
+  return {
+    kind: 'countdown',
+    gameNumber: next.gameNumber,
+    startsAt: next.startsAt,
+    white: next.white,
+    black: next.black,
+  }
+}
+
+export function formatCountdown(ms: number): string {
+  if (ms <= 0) return '00:00:00'
+  const total = Math.floor(ms / 1000)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const pad = (n: number) => String(n).padStart(2, '0')
+  if (h > 48) {
+    const days = Math.floor(h / 24)
+    const rh = h % 24
+    return `${days}д ${pad(rh)}:${pad(m)}:${pad(s)}`
+  }
+  return `${pad(h)}:${pad(m)}:${pad(s)}`
+}
+
+export function playerLabel(id: PlayerId): string {
+  const p = PLAYERS[id]
+  return `${p.flag} ${p.name}`
 }
